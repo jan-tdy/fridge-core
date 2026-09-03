@@ -24,7 +24,7 @@ This blueprint uses local storage, a To-Do list, and an AI integration to parse 
 ### Installation
 Click the button below or copy your raw file link directly into the **Settings > Automations & Scenes > Blueprints > Import Blueprint** menu in Home Assistant.
 
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fjan-tdy%2Ffridge-core%2Fautomation.yaml)
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fjan-tdy%2Ffridge-core%2Fblob%2Fmain%2Fautomation.yaml)
 
 
 If you found this useful, please star this repo! Also take a look at the card for it: www.github.com/jan-tdy/fridge-card
