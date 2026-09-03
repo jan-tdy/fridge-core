@@ -16,7 +16,13 @@ You can mount it inside or outside the fridge, but... Just do it how you want...
 4. Flash the device.
 5. Home Assistant AI Automation Setup
 
-This blueprint uses local storage, a To-Do list, and an AI integration to parse images of your fridge contents in Slovak.
+This blueprint takes a snapshot when the door opens, sends it to an AI
+vision model, and creates or updates one To-Do item per recognized food
+item (name + a short description of quantity/condition). Items already in
+the list are matched by name and only their description is refreshed, so
+any expiration/"best before" date you set by hand stays intact across
+scans. Items no longer detected are left alone - remove them yourself once
+you've used them up.
 
 ### Prerequisites
 1. **AI Integration:** You must have an extended AI conversation or task integration configured (like `Google Generative AI` or `OpenAI Conversation`) that provides the `ai_task.generate_data` action.
@@ -28,5 +34,14 @@ Click the button below or copy your raw file link directly into the **Settings >
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fjan-tdy%2Ffridge-core%2Fblob%2Fmain%2Fautomation.yaml)
 
+## Companion card
 
-If you found this useful, please star this repo! Also take a look at the card for it: www.github.com/jan-tdy/fridge-card
+[jan-tdy/fridge-card](https://github.com/jan-tdy/fridge-card) is the
+Lovelace UI half of this project: a custom card that shows the latest
+snapshot (with a config option to correct a crooked camera mount) and the
+To-Do items this blueprint creates as a plain, editable list (name,
+description, expiration date - no checkboxes), plus quick controls for the
+light, door status, live camera view and re-running this automation.
+Point its `todo_entity` at the same To-Do list configured above.
+
+If you found this useful, please star both repos!

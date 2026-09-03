@@ -1,6 +1,13 @@
 blueprint:
   name: Fridge AI Content Analyzer (English Prompt)
-  description: Takes a camera snapshot when the fridge door opens, runs it through an AI vision model, and saves the formatted markdown inventory into a Home Assistant To-Do list.
+  description: >-
+    Takes a camera snapshot when the fridge door opens, runs it through an AI
+    vision model, and creates/updates one To-Do item per recognized food item
+    (name + description). Items already in the list are matched by name and
+    only their description is refreshed, so a "best before" date you set by
+    hand on the fridge-card (github.com/jan-tdy/fridge-card) survives the
+    next scan. Items no longer detected are left in place - remove them
+    yourself once you've used them up.
   domain: automation
   source_url: https://github.com
   input:
@@ -104,27 +111,56 @@ actions:
 
   - variables:
       todo_entity: !input todo_list
-      ai_note_uid: |-
-        {{ existing_items[todo_entity].items
-           | selectattr('summary', 'equalto', 'AI Analýza')
+      # Existing items as [{name_lower, uid}, ...], so re-scans update an
+      # item in place (keeping any due date you set on it) instead of
+      # duplicating it.
+      existing_list: >-
+        {% set ns2 = namespace(list=[]) %}
+        {% for it in existing_items[todo_entity].items %}
+          {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid}] %}
+        {% endfor %}
+        {{ ns2.list }}
+      # Parse the AI's markdown list ("- Name [conf. NN%]; **qty**; status
+      # [conf. NN%]; *notes*") into [{name, description}, ...]. Lines that
+      # don't start with "-" (including the "Error: {empty}" / "Error:
+      # {closed}" replies) are silently skipped.
+      fridge_items: >-
+        {% set ns = namespace(items=[]) %}
+        {% for raw_line in sum_fridge.data.split('\n') %}
+          {% set line = raw_line.strip() %}
+          {% if line.startswith('-') %}
+            {% set parts = line[1:].strip().split(';') %}
+            {% set name = parts[0] | regex_replace('\s*\[conf\.[^\]]*\]', '') | regex_replace('\*+', '') | trim %}
+            {% set rest = parts[1:] | map('trim') | map('regex_replace', '\*+', '') | list | join(' · ') %}
+            {% if name | length > 0 %}
+              {% set ns.items = ns.items + [{'name': name, 'description': rest}] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.items }}
 
-           | map(attribute='uid') | list | first | default(none) }}
-
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: '{{ ai_note_uid is not none }}'
-        sequence:
-          - action: todo.update_item
-            target:
-              entity_id: !input todo_list
-            data:
-              item: '{{ ai_note_uid }}'
-              description: '{{ sum_fridge.data }}'
-    default:
-      - action: todo.add_item
-        target:
-          entity_id: !input todo_list
-        data:
-          item: AI Analýza
-          description: '{{ sum_fridge.data }}'
+  - repeat:
+      for_each: '{{ fridge_items }}'
+      sequence:
+        - variables:
+            match_uid: >-
+              {{ existing_list | selectattr('name_lower', 'equalto', repeat.item.name | lower | trim)
+                 | map(attribute='uid') | list | first | default(none) }}
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: '{{ match_uid is not none }}'
+              sequence:
+                - action: todo.update_item
+                  target:
+                    entity_id: !input todo_list
+                  data:
+                    item: '{{ match_uid }}'
+                    description: '{{ repeat.item.description }}'
+          default:
+            - action: todo.add_item
+              target:
+                entity_id: !input todo_list
+              data:
+                item: '{{ repeat.item.name }}'
+                description: '{{ repeat.item.description }}'
