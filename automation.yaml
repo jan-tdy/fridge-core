@@ -11,9 +11,11 @@ blueprint:
     context, so it's a best-effort nudge rather than a guarantee. Items are
     also matched by name after the fact, so a "best before" date you set by
     hand on the fridge-card (github.com/jan-tdy/fridge-card) survives the
-    next scan whenever the name comes back unchanged. Items no longer
-    detected are left in place - remove them yourself once you've used them
-    up.
+    next scan whenever the name comes back unchanged - and so do a Brand
+    you set on the card (the AI never writes to it) and a detection frame
+    you drew by hand there (an AI-estimated one still refreshes normally on
+    each scan). Items no longer detected are left in place - remove them
+    yourself once you've used them up.
   domain: automation
   source_url: https://github.com
   input:
@@ -96,13 +98,15 @@ actions:
   - variables:
       todo_entity: !input todo_list
       ai_language: !input ai_language
-      # Existing items as [{name_lower, uid}, ...], so re-scans update an
-      # item in place (keeping any due date you set on it) instead of
-      # duplicating it.
+      # Existing items as [{name_lower, uid, description}, ...], so
+      # re-scans update an item in place (keeping any due date you set on
+      # it) instead of duplicating it, and so the Brand/manually-drawn box
+      # markers in its description can be carried forward - see the repeat
+      # loop below.
       existing_list: >-
         {% set ns2 = namespace(list=[]) %}
         {% for it in existing_items[todo_entity]['items'] %}
-          {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid}] %}
+          {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid, 'description': it.description | default('')}] %}
         {% endfor %}
         {{ ns2.list }}
       # "Name (previously around box x1,y1,x2,y2)" per existing item, fed
@@ -206,20 +210,37 @@ actions:
       for_each: '{{ fridge_items }}'
       sequence:
         - variables:
-            match_uid: >-
+            match: >-
               {{ existing_list | selectattr('name_lower', 'equalto', repeat.item.name | lower | trim)
-                 | map(attribute='uid') | list | first | default(none) }}
+                 | list | first | default(none) }}
+            existing_desc: '{{ match.description if match else "" }}'
+            # A box is only preserved if it carries fridge-card's ",m" flag
+            # (drawn by hand there) - an AI-set box without that flag is
+            # left to refresh normally below.
+            preserved_box_raw: >-
+              {{ existing_desc | regex_replace('.*(\[\[box:[0-9.]+,[0-9.]+,[0-9.]+,[0-9.]+,m\]\]).*', '\\1') }}
+            preserved_box: '{{ preserved_box_raw if preserved_box_raw != existing_desc else "" }}'
+            preserved_brand_raw: >-
+              {{ existing_desc | regex_replace('.*(\[\[brand:[^\]]*\]\]).*', '\\1') }}
+            preserved_brand: '{{ preserved_brand_raw if preserved_brand_raw != existing_desc else "" }}'
+            ai_box_raw: >-
+              {{ repeat.item.description | regex_replace('.*(\[\[box:[^\]]*\]\]).*', '\\1') }}
+            ai_box: '{{ ai_box_raw if ai_box_raw != repeat.item.description else "" }}'
+            ai_text: >-
+              {{ repeat.item.description | regex_replace('\s*\[\[box:[^\]]*\]\]\s*', ' ') | trim }}
+            final_description: >-
+              {{ (ai_text ~ ' ' ~ (preserved_box if preserved_box else ai_box) ~ ' ' ~ preserved_brand) | trim }}
         - choose:
             - conditions:
                 - condition: template
-                  value_template: '{{ match_uid is not none }}'
+                  value_template: '{{ match is not none }}'
               sequence:
                 - action: todo.update_item
                   target:
                     entity_id: !input todo_list
                   data:
-                    item: '{{ match_uid }}'
-                    description: '{{ repeat.item.description }}'
+                    item: '{{ match.uid }}'
+                    description: '{{ final_description }}'
           default:
             - action: todo.add_item
               target:
