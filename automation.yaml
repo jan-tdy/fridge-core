@@ -17,7 +17,9 @@ blueprint:
     stay put on the next scan instead of being overwritten by a fresh AI
     guess. Confidence is always the AI's latest estimate, since the AI - not
     you - sets it. Items no longer detected are left in place - remove them
-    yourself once you've used them up.
+    yourself once you've used them up. An item marked eaten on the card is
+    reactivated (not duplicated) if a later scan still recognizes it under
+    the same name - it was evidently still there.
   domain: automation
   source_url: https://github.com
   input:
@@ -94,7 +96,9 @@ actions:
     target:
       entity_id: !input todo_list
     data:
-      status: needs_action
+      status:
+        - needs_action
+        - completed
     response_variable: existing_items
 
   - variables:
@@ -271,6 +275,12 @@ actions:
                   data:
                     item: '{{ match.uid }}'
                     description: '{{ final_description }}'
+                    # Always (re)set to needs_action: if the item had been
+                    # marked eaten on the card and the AI still recognizes it
+                    # in this scan, it's evidently still in the fridge - so
+                    # reactivate that same record instead of leaving it
+                    # completed while a fresh duplicate gets added below.
+                    status: needs_action
           default:
             - action: todo.add_item
               target:
