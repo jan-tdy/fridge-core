@@ -1,4 +1,5 @@
 # A finally working and cheap fridge camera!
+If you found this useful, please star this repo.
 
 An ESPHome configuration for an ESP32-CAM tailored for monitoring a refrigerator interior. Includes video streaming, a toggleable flashlight, and a reed-switch door sensor.
 
