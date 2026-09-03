@@ -21,10 +21,13 @@ This blueprint takes a snapshot when the door opens, sends it to an AI
 vision model, and creates or updates one To-Do item per recognized food
 item: name, a short description of quantity/condition, and an estimated
 bounding box (for [fridge-card](https://github.com/jan-tdy/fridge-card)'s
-detection-frame overlay). Items already in the list are matched by name
-and only their description is refreshed, so any expiration/"best before"
-date you set by hand stays intact across scans. Items no longer detected
-are left alone - remove them yourself once you've used them up.
+detection-frame overlay). Items already in the list are matched by name,
+so an expiration/"best before" date you set by hand stays intact across
+scans. So does a **Brand** you set on the card - the AI never writes to
+that field - and a detection frame you **drew by hand** on the card; an
+AI-estimated frame you haven't corrected still refreshes normally on
+each scan. Items no longer detected are left alone - remove them
+yourself once you've used them up.
 
 The AI is also told which item names were already used in a previous
 scan (with their last known box location) and asked to reuse an exact
@@ -56,8 +59,9 @@ Click the button below or copy your raw file link directly into the **Settings >
 Lovelace UI half of this project: a custom card that shows the latest
 snapshot (with a config option to correct a crooked camera mount) and the
 To-Do items this blueprint creates as a plain, editable list (name,
-description, expiration date - no checkboxes), an optional overlay of the
-bounding boxes this blueprint estimates, plus quick controls for the
+description, brand, expiration date - no checkboxes), an optional overlay
+of the bounding boxes this blueprint estimates (editable/drawable by
+hand), plus quick controls for the
 light, door status, live camera view and re-running this automation.
 Point its `todo_entity` at the same To-Do list configured above.
 
