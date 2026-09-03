@@ -12,9 +12,19 @@ An ESPHome configuration for an ESP32-CAM tailored for monitoring a refrigerator
 2. Edit the top `substitutions:` block to match your preferred names and area.
 3. Ensure your local `secrets.yaml` contains the required keys: `wifi_ssid`, `wifi_password`, and `fridgecam_api_key`.
 4. Flash the device.
-5. Create a to-do list in Home Assistant named `Fridge Contents`.
-6. Create a new automation in Home Assistant and switch to YAML edit mode.
-7. Copy the contents of `automation.yaml` to the new automation.
-8. Check that all entities in the automation are correct; if not, correct them for your setup.
+5. Home Assistant AI Automation Setup
+
+This blueprint uses local storage, a To-Do list, and an AI integration to parse images of your fridge contents in Slovak.
+
+### Prerequisites
+1. **AI Integration:** You must have an extended AI conversation or task integration configured (like `Google Generative AI` or `OpenAI Conversation`) that provides the `ai_task.generate_data` action.
+2. **Folder Creation:** Ensure the folder `/config/www/fridge/` exists in your Home Assistant configuration directory to allow the camera snapshot to save correctly.
+3. **To-Do List:** Create a dedicated To-Do list in Home Assistant named `Fridge Contents` (or similar).
+
+### Installation
+Click the button below or copy your raw file link directly into the **Settings > Automations & Scenes > Blueprints > Import Blueprint** menu in Home Assistant.
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fjan-tdy%2Ffridge-core%2Fautomation.yaml)
+
 
 If you found this useful, please star this repo! Also take a look at the card for it: www.github.com/jan-tdy/fridge-card
