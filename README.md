@@ -30,7 +30,9 @@ So does anything you edit on the card: quantity, condition, note, a
 instead of being overwritten by a fresh AI guess. Confidence is always
 the AI's latest estimate, since only the AI ever sets it. Items no
 longer detected are left alone - remove them yourself once you've used
-them up.
+them up. An item marked eaten on the card is reactivated - not
+duplicated - if a later scan still recognizes it under the same name;
+it was evidently still there.
 
 The AI is also told which item names were already used in a previous
 scan (with their last known box location) and asked to reuse an exact
@@ -63,10 +65,11 @@ Lovelace UI half of this project: a custom card that shows the latest
 snapshot (with a config option to correct a crooked camera mount) and the
 To-Do items this blueprint creates as a plain, editable list - name,
 quantity, condition, an AI confidence readout, note, brand, expiration
-date, each its own field, no checkboxes - an optional overlay of the
-bounding boxes this blueprint estimates (editable/drawable by hand),
-plus quick controls for the light, door status, live camera view and
-re-running this automation. Point its `todo_entity` at the same To-Do
-list configured above.
+date, each its own field, plus a checkbox to mark an item eaten (tucked
+into a collapsed "Eaten" section instead of deleted outright) - an
+optional overlay of the bounding boxes this blueprint estimates
+(editable/drawable by hand), plus quick controls for the light, door
+status, live camera view and re-running this automation. Point its
+`todo_entity` at the same To-Do list configured above.
 
 If you found this useful, please star both repos!
