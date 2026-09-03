@@ -69,14 +69,22 @@ to copy a file on the HA server by itself:
 ```yaml
 shell_command:
   fridge_save_snapshot: >-
-    sh -c 'ts=$(date +%s);
+    ts=$(date +%s);
     mkdir -p /config/www/fridge/history;
     cp /config/www/fridge/fridge_latest.jpg /config/www/fridge/history/fridge_$ts.jpg;
-    echo $ts >> /config/www/fridge/history/manifest.txt'
+    echo $ts >> /config/www/fridge/history/manifest.txt
 ```
+
+`shell_command` already runs its value through a shell itself, so there's
+no need to wrap it in another `sh -c '...'`.
 
 Restart Home Assistant (or reload YAML) after adding it, then set the
 card's `snapshot_service` option to `shell_command.fridge_save_snapshot`.
+If **Save** shows an error, it's almost always this step - either the
+command hasn't been added/reloaded yet, or `snapshot_service` doesn't
+match the name you gave it under `shell_command:` exactly (the name
+after the dot). Check **Settings → System → Logs** for the shell
+command's own output/exit code if the error message alone isn't enough.
 Pressing **Save** copies whatever `fridge_latest.jpg` currently holds -
 not a fresh camera capture - into `history/` under a timestamped
 filename, and appends that timestamp to `history/manifest.txt`; the card
