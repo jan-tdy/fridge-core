@@ -2,6 +2,8 @@
 
 An ESPHome configuration for an ESP32-CAM tailored for monitoring a refrigerator interior. Includes video streaming, a toggleable flashlight, and a reed-switch door sensor.
 
+You can mount it inside or outside the fridge, but... Just do it how you want...
+
 ## Hardware Setup
 * **Camera:** AI Thinker ESP32-CAM module.
 * **Flashlight:** Built-in high-power LED connected to `GPIO4`.
