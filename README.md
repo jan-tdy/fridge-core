@@ -58,16 +58,45 @@ Click the button below or copy your raw file link directly into the **Settings >
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fjan-tdy%2Ffridge-core%2Fblob%2Fmain%2Fautomation.yaml)
 
+### Optional: saved snapshot history
+
+fridge-card's **Save** and ◀ ▶ **Latest** controls let you keep a copy of
+the current photo and browse back through previously saved ones. This
+needs one `shell_command` added to your Home Assistant
+`configuration.yaml` - the card is just a browser page, so it has no way
+to copy a file on the HA server by itself:
+
+```yaml
+shell_command:
+  fridge_save_snapshot: >-
+    sh -c 'ts=$(date +%s);
+    mkdir -p /config/www/fridge/history;
+    cp /config/www/fridge/fridge_latest.jpg /config/www/fridge/history/fridge_$ts.jpg;
+    echo $ts >> /config/www/fridge/history/manifest.txt'
+```
+
+Restart Home Assistant (or reload YAML) after adding it, then set the
+card's `snapshot_service` option to `shell_command.fridge_save_snapshot`.
+Pressing **Save** copies whatever `fridge_latest.jpg` currently holds -
+not a fresh camera capture - into `history/` under a timestamped
+filename, and appends that timestamp to `history/manifest.txt`; the card
+reads that plain text file directly to know what's browsable. Adjust the
+paths in the command if your `image_path` isn't the default
+`/local/fridge/fridge_latest.jpg`. This is entirely optional - without
+it, the card just shows the live photo as before.
+
 ## Companion card
 
 [jan-tdy/fridge-card](https://github.com/jan-tdy/fridge-card) is the
 Lovelace UI half of this project: a custom card that shows the latest
-snapshot (with a config option to correct a crooked camera mount) and the
-To-Do items this blueprint creates as a plain, editable list - name,
-quantity, condition, an AI confidence readout, note, brand, expiration
-date, each its own field, plus a checkbox to mark an item eaten (tucked
-into a collapsed "Eaten" section instead of deleted outright) - an
-optional overlay of the bounding boxes this blueprint estimates
+snapshot (with a config option to correct a crooked camera mount, an
+optional way to save and browse back through older snapshots - see
+above - and a refresh button to force-reload it) and the To-Do items
+this blueprint creates as a plain, editable list - name, quantity,
+condition, an AI confidence readout, note, brand, expiration date, each
+its own field, plus a checkbox to mark an item eaten (tucked into a
+collapsed "Eaten" section instead of deleted outright) - an optional
+overlay of the bounding boxes this blueprint estimates
 (editable/drawable by hand), plus quick controls for the light, door
 status, live camera view and re-running this automation. Point its
 `todo_entity` at the same To-Do list configured above.
