@@ -1,0 +1,130 @@
+blueprint:
+  name: Fridge AI Content Analyzer (English Prompt)
+  description: Takes a camera snapshot when the fridge door opens, runs it through an AI vision model, and saves the formatted markdown inventory into a Home Assistant To-Do list.
+  domain: automation
+  source_url: https://github.com
+  input:
+    door_sensor:
+      name: Door Sensor
+      description: The binary sensor tracking the fridge door.
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: door
+    flashlight:
+      name: Flashlight / Light
+      description: The camera flash or internal fridge light.
+      selector:
+        entity:
+          domain: light
+    camera_feed:
+      name: Camera
+      description: The ESP32-CAM video feed entity.
+      selector:
+        entity:
+          domain: camera
+    todo_list:
+      name: To-Do List
+      description: The Home Assistant To-Do list where the inventory markdown will be saved.
+      selector:
+        entity:
+          domain: todo
+
+mode: single
+
+trigger:
+  - trigger: door.opened
+    target:
+      entity_id: !input door_sensor
+    options:
+      behavior: each
+      for: '00:00:00'
+
+conditions: []
+
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: !input flashlight
+  
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 2
+      milliseconds: 435
+
+  - action: camera.snapshot
+    target:
+      entity_id: !input camera_feed
+    data:
+      filename: /config/www/fridge/fridge_latest.jpg
+
+  - action: ai_task.generate_data
+    data:
+      task_name: Fridge summary
+      instructions: >-
+        Please generate a comprehensive inventory list of every item visible inside the refrigerator. 
+        Do not use vague language like 'I don't know', 'maybe', or 'perhaps'. 
+        Format the output exclusively as a Markdown list.
+        
+        Example format (a standard response may contain up to 20 lines):
+        " - Butter [conf. 82%]; **2 pieces**; opened [conf. 08%]; *N/A*
+        - Strawberry Yogurt [conf. 65%]; **6 pieces**; unopened [conf. 92%]; *small white cup*"
+        
+        CRITICAL RULES:
+        1. Never include conversational filler like 'Based on the provided photo, I see...' Output only the raw data.
+        2. Never use broad categories like 'vegetables' or 'bag'. State exactly what specific item you believe it is alongside your confidence score, e.g., 'broccoli [conf. 75%]'.
+        3. If the fridge appears completely empty, reply exactly with: 'Error: {empty}'
+        4. If the camera is blocked or only a blank white door panel is visible, reply exactly with: 'Error: {closed}'
+      attachments:
+        media_content_id: media-source://media_source/fridge/fridge_latest.jpg
+        media_content_type: image/jpeg
+        metadata:
+          title: Fridge Snapshot
+          thumbnail: /local/fridge/fridge_latest.jpg
+          media_class: image
+    response_variable: sum_fridge
+
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 1
+      milliseconds: 250
+
+  - action: light.turn_off
+    target:
+      entity_id: !input flashlight
+
+  - action: todo.get_items
+    target:
+      entity_id: !input todo_list
+    data:
+      status: needs_action
+    response_variable: existing_items
+
+  - variables:
+      todo_entity: !input todo_list
+      ai_note_uid: |-
+        {{ existing_items[todo_entity].items
+           | selectattr('summary', 'equalto', 'AI Analýza')
+
+           | map(attribute='uid') | list | first | default(none) }}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: '{{ ai_note_uid is not none }}'
+        sequence:
+          - action: todo.update_item
+            target:
+              entity_id: !input todo_list
+            data:
+              item: '{{ ai_note_uid }}'
+              description: '{{ sum_fridge.data }}'
+    default:
+      - action: todo.add_item
+        target:
+          entity_id: !input todo_list
+        data:
+          item: AI Analýza
+          description: '{{ sum_fridge.data }}'
