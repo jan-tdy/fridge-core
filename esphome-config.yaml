@@ -1,0 +1,94 @@
+# =========================================================================
+# ESP32-CAM Fridge Camera with Flashlight & Reed Switch Door Sensor
+# =========================================================================
+# To use this configuration, add the following to your secrets.yaml file:
+# wifi_ssid: "Your_WiFi_Name"
+# wifi_password: "Your_WiFi_Password"
+# fridgecam_api_key: "Generated_32_Byte_Base64_Key"
+# =========================================================================
+
+substitutions:
+  name: "jadiv-fridgecam-v1"
+  friendly_name: "Jadiv FridgeCam v1"
+  area: "Sklad hore"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  area: ${area}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Top-level psram component required for ESP32-CAM video streaming
+psram:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap: {}
+
+captive_portal:
+
+ota:
+  - platform: esphome
+
+# Native Home Assistant API configuration
+api:
+  encryption:
+    key: !secret fridgecam_api_key
+
+logger:
+
+# Camera Configuration (AI Thinker / Common ESP32-CAM Pinout)
+esp32_camera:
+  name: "${friendly_name} Feed"
+  external_clock:
+    pin: GPIO0
+    frequency: 20MHz
+  i2c_pins:
+    sda: GPIO26
+    scl: GPIO27
+  data_pins: [GPIO5, GPIO18, GPIO19, GPIO21, GPIO36, GPIO39, GPIO34, GPIO35]
+  vsync_pin: GPIO25
+  href_pin: GPIO23
+  pixel_clock_pin: GPIO22
+  power_down_pin: GPIO32
+  resolution: 640x480
+  jpeg_quality: 0
+  vertical_flip: true
+  horizontal_mirror: false
+  max_framerate: 10fps
+  idle_framerate: 1FPS
+
+# Onboard Flashlight LED
+output:
+  - platform: ledc
+    pin: GPIO4
+    id: gpio_4_flashlight
+
+light:
+  - platform: monochromatic
+    output: gpio_4_flashlight
+    name: "${friendly_name} Flashlight"
+
+# Reed switch (2-wire: one leg to GPIO13, other to GND)
+# Contact closes (pin -> LOW via pullup) when the magnet is near.
+# device_class: door means HIGH/Open = Door Open, LOW/Closed = Door Closed.
+binary_sensor:
+  - platform: gpio
+    name: "${friendly_name} Door"
+    device_class: door
+    pin:
+      number: GPIO13
+      mode: INPUT_PULLUP
+
+# Deep sleep - DISABLED, feel free to enable
+# deep_sleep:
+#   run_duration: 30s
+#   sleep_duration: 12h
+#   wakeup_pin:
+#     number: GPIO13
+#     allow_other_uses: true
