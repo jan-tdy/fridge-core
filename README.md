@@ -19,11 +19,26 @@ You can mount it inside or outside the fridge, but... Just do it how you want...
 
 This blueprint takes a snapshot when the door opens, sends it to an AI
 vision model, and creates or updates one To-Do item per recognized food
-item (name + a short description of quantity/condition). Items already in
-the list are matched by name and only their description is refreshed, so
-any expiration/"best before" date you set by hand stays intact across
-scans. Items no longer detected are left alone - remove them yourself once
-you've used them up.
+item: name, a short description of quantity/condition, and an estimated
+bounding box (for [fridge-card](https://github.com/jan-tdy/fridge-card)'s
+detection-frame overlay). Items already in the list are matched by name
+and only their description is refreshed, so any expiration/"best before"
+date you set by hand stays intact across scans. Items no longer detected
+are left alone - remove them yourself once you've used them up.
+
+The AI is also told which item names were already used in a previous
+scan (with their last known box location) and asked to reuse an exact
+name when it's plausibly the same physical item — e.g. if you rename
+"Palacinka" to "Praženica" on the card, the next scan is nudged to say
+"Praženica" again instead of re-guessing. This is **not** real training —
+each analysis is a fresh, stateless request with no memory of past
+runs — it's just context added to that one prompt, so it's a best-effort
+nudge, not a guarantee; the AI can still occasionally invent a different
+name.
+
+The **AI Output Language** blueprint input switches the item
+names/descriptions between English and Slovenčina; the structural
+markup (confidence scores, box coordinates) is unaffected.
 
 ### Prerequisites
 1. **AI Integration:** You must have an extended AI conversation or task integration configured (like `Google Generative AI` or `OpenAI Conversation`) that provides the `ai_task.generate_data` action.
@@ -41,7 +56,8 @@ Click the button below or copy your raw file link directly into the **Settings >
 Lovelace UI half of this project: a custom card that shows the latest
 snapshot (with a config option to correct a crooked camera mount) and the
 To-Do items this blueprint creates as a plain, editable list (name,
-description, expiration date - no checkboxes), plus quick controls for the
+description, expiration date - no checkboxes), an optional overlay of the
+bounding boxes this blueprint estimates, plus quick controls for the
 light, door status, live camera view and re-running this automation.
 Point its `todo_entity` at the same To-Do list configured above.
 

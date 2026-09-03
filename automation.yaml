@@ -3,11 +3,17 @@ blueprint:
   description: >-
     Takes a camera snapshot when the fridge door opens, runs it through an AI
     vision model, and creates/updates one To-Do item per recognized food item
-    (name + description). Items already in the list are matched by name and
-    only their description is refreshed, so a "best before" date you set by
+    (name + description + an estimated bounding box for fridge-card's
+    detection-frame overlay). The AI is told which item names were already
+    used on a previous scan (with their last known box location) and asked
+    to reuse an exact name when it thinks it's the same physical item -
+    there's no real training/memory involved, this is just per-request
+    context, so it's a best-effort nudge rather than a guarantee. Items are
+    also matched by name after the fact, so a "best before" date you set by
     hand on the fridge-card (github.com/jan-tdy/fridge-card) survives the
-    next scan. Items no longer detected are left in place - remove them
-    yourself once you've used them up.
+    next scan whenever the name comes back unchanged. Items no longer
+    detected are left in place - remove them yourself once you've used them
+    up.
   domain: automation
   source_url: https://github.com
   input:
@@ -36,6 +42,20 @@ blueprint:
       selector:
         entity:
           domain: todo
+    ai_language:
+      name: AI Output Language
+      description: >-
+        Language the AI should use for item names and descriptions. The
+        structural markup (confidence scores, box coordinates, formatting)
+        stays the same either way - only the words change.
+      default: english
+      selector:
+        select:
+          options:
+            - label: English
+              value: english
+            - label: Slovenčina
+              value: slovak
 
 mode: single
 
@@ -53,7 +73,7 @@ actions:
   - action: light.turn_on
     target:
       entity_id: !input flashlight
-  
+
   - delay:
       hours: 0
       minutes: 0
@@ -66,23 +86,70 @@ actions:
     data:
       filename: /config/www/fridge/fridge_latest.jpg
 
+  - action: todo.get_items
+    target:
+      entity_id: !input todo_list
+    data:
+      status: needs_action
+    response_variable: existing_items
+
+  - variables:
+      todo_entity: !input todo_list
+      ai_language: !input ai_language
+      # Existing items as [{name_lower, uid}, ...], so re-scans update an
+      # item in place (keeping any due date you set on it) instead of
+      # duplicating it.
+      existing_list: >-
+        {% set ns2 = namespace(list=[]) %}
+        {% for it in existing_items[todo_entity]['items'] %}
+          {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid}] %}
+        {% endfor %}
+        {{ ns2.list }}
+      # "Name (previously around box x1,y1,x2,y2)" per existing item, fed
+      # into the AI prompt below so it can try to reuse a name itself
+      # instead of us guessing sameness by box overlap after the fact.
+      existing_hints: >-
+        {% set ns3 = namespace(parts=[]) %}
+        {% for it in existing_items[todo_entity]['items'] %}
+          {% set b = it.description | regex_findall('\[\[box:([\d.,]+)\]\]') %}
+          {% set hint = it.summary ~ (' (previously around box ' ~ b[0] ~ ')' if b else '') %}
+          {% set ns3.parts = ns3.parts + [hint] %}
+        {% endfor %}
+        {{ ns3.parts | join('; ') }}
+
   - action: ai_task.generate_data
     data:
       task_name: Fridge summary
       instructions: >-
-        Please generate a comprehensive inventory list of every item visible inside the refrigerator. 
-        Do not use vague language like 'I don't know', 'maybe', or 'perhaps'. 
-        Format the output exclusively as a Markdown list.
-        
+        Please generate a comprehensive inventory list of every item visible inside the refrigerator.
+        Do not use vague language like 'I don't know', 'maybe', or 'perhaps'.
+        Format the output exclusively as a Markdown list. For each item also estimate its
+        location in the photo as a bounding box: the percentage (0-100, measured from the
+        top-left corner) of the image width/height for the box's left, top, right and bottom
+        edges, in that order.
+
+        {%- if existing_hints %}
+
+        These items were already identified in a previous scan of this same fridge:
+        {{ existing_hints }}. If an item you see now is the same physical item as one of
+        these (even if it looks slightly different - a different angle, partially eaten,
+        different lighting - or sits at roughly the same box location as before), reuse its
+        EXACT name from that list instead of inventing a new one. Only use a new name for
+        something that is genuinely not in that list.
+        {%- endif %}
+
         Example format (a standard response may contain up to 20 lines):
-        " - Butter [conf. 82%]; **2 pieces**; opened [conf. 08%]; *N/A*
-        - Strawberry Yogurt [conf. 65%]; **6 pieces**; unopened [conf. 92%]; *small white cup*"
-        
+        " - Butter [conf. 82%]; **2 pieces**; opened [conf. 08%]; *N/A*; box: 12,34,26,41
+        - Strawberry Yogurt [conf. 65%]; **6 pieces**; unopened [conf. 92%]; *small white cup*; box: 55,30,72,48"
+
         CRITICAL RULES:
         1. Never include conversational filler like 'Based on the provided photo, I see...' Output only the raw data.
         2. Never use broad categories like 'vegetables' or 'bag'. State exactly what specific item you believe it is alongside your confidence score, e.g., 'broccoli [conf. 75%]'.
         3. If the fridge appears completely empty, reply exactly with: 'Error: {empty}'
         4. If the camera is blocked or only a blank white door panel is visible, reply exactly with: 'Error: {closed}'
+        {%- if ai_language == 'slovak' %}
+        5. Write the item names and the free-text parts (quantity, condition, notes) in Slovak, e.g. 'maslo' instead of 'butter', 'otvorené'/'neotvorené' instead of 'opened'/'unopened'. Keep the structural markup exactly as in the example - the semicolons, '[conf. NN%]', 'box: x,y,x,y' and the bold/italic asterisks - only translate the words.
+        {%- endif %}
       attachments:
         media_content_id: media-source://media_source/fridge/fridge_latest.jpg
         media_content_type: image/jpeg
@@ -102,38 +169,34 @@ actions:
     target:
       entity_id: !input flashlight
 
-  - action: todo.get_items
-    target:
-      entity_id: !input todo_list
-    data:
-      status: needs_action
-    response_variable: existing_items
-
   - variables:
-      todo_entity: !input todo_list
-      # Existing items as [{name_lower, uid}, ...], so re-scans update an
-      # item in place (keeping any due date you set on it) instead of
-      # duplicating it.
-      existing_list: >-
-        {% set ns2 = namespace(list=[]) %}
-        {% for it in existing_items[todo_entity].items %}
-          {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid}] %}
-        {% endfor %}
-        {{ ns2.list }}
       # Parse the AI's markdown list ("- Name [conf. NN%]; **qty**; status
-      # [conf. NN%]; *notes*") into [{name, description}, ...]. Lines that
-      # don't start with "-" (including the "Error: {empty}" / "Error:
-      # {closed}" replies) are silently skipped.
+      # [conf. NN%]; *notes*; box: x1,y1,x2,y2") into
+      # [{name, description}, ...], where description already carries a
+      # trailing "[[box:x1,y1,x2,y2]]" marker for fridge-card's detection
+      # frames whenever the AI provided one. Lines that don't start with
+      # "-" (including the "Error: {empty}" / "Error: {closed}" replies)
+      # are silently skipped.
       fridge_items: >-
         {% set ns = namespace(items=[]) %}
         {% for raw_line in sum_fridge.data.split('\n') %}
           {% set line = raw_line.strip() %}
           {% if line.startswith('-') %}
-            {% set parts = line[1:].strip().split(';') %}
-            {% set name = parts[0] | regex_replace('\s*\[conf\.[^\]]*\]', '') | regex_replace('\*+', '') | trim %}
-            {% set rest = parts[1:] | map('trim') | map('regex_replace', '\*+', '') | list | join(' · ') %}
+            {% set all_parts = line[1:].strip().split(';') %}
+            {% set ns2 = namespace(desc_parts=[], box='') %}
+            {% for p in all_parts %}
+              {% set pt = p.strip() %}
+              {% if pt.lower().startswith('box') %}
+                {% set ns2.box = (pt.split(':', 1)[1].strip() if ':' in pt else '') %}
+              {% else %}
+                {% set ns2.desc_parts = ns2.desc_parts + [pt] %}
+              {% endif %}
+            {% endfor %}
+            {% set name = ns2.desc_parts[0] | regex_replace('\s*\[conf\.[^\]]*\]', '') | regex_replace('\*+', '') | trim %}
+            {% set rest = ns2.desc_parts[1:] | map('regex_replace', '\*+', '') | list | join(' · ') %}
+            {% set description = rest ~ (' [[box:' ~ ns2.box ~ ']]' if ns2.box else '') %}
             {% if name | length > 0 %}
-              {% set ns.items = ns.items + [{'name': name, 'description': rest}] %}
+              {% set ns.items = ns.items + [{'name': name, 'description': description}] %}
             {% endif %}
           {% endif %}
         {% endfor %}
