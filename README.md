@@ -19,15 +19,18 @@ You can mount it inside or outside the fridge, but... Just do it how you want...
 
 This blueprint takes a snapshot when the door opens, sends it to an AI
 vision model, and creates or updates one To-Do item per recognized food
-item: name, a short description of quantity/condition, and an estimated
-bounding box (for [fridge-card](https://github.com/jan-tdy/fridge-card)'s
-detection-frame overlay). Items already in the list are matched by name,
-so an expiration/"best before" date you set by hand stays intact across
-scans. So does a **Brand** you set on the card - the AI never writes to
-that field - and a detection frame you **drew by hand** on the card; an
-AI-estimated frame you haven't corrected still refreshes normally on
-each scan. Items no longer detected are left alone - remove them
-yourself once you've used them up.
+item: name plus separate quantity, condition, confidence and note fields,
+and an estimated bounding box (for
+[fridge-card](https://github.com/jan-tdy/fridge-card)'s detection-frame
+overlay). Items already in the list are matched by name, so an
+expiration/"best before" date you set by hand stays intact across scans.
+So does anything you edit on the card: quantity, condition, note, a
+**Brand** (which the AI never writes to at all) and a detection frame you
+**drew by hand** all stay exactly as you set them on the next scan
+instead of being overwritten by a fresh AI guess. Confidence is always
+the AI's latest estimate, since only the AI ever sets it. Items no
+longer detected are left alone - remove them yourself once you've used
+them up.
 
 The AI is also told which item names were already used in a previous
 scan (with their last known box location) and asked to reuse an exact
@@ -58,11 +61,12 @@ Click the button below or copy your raw file link directly into the **Settings >
 [jan-tdy/fridge-card](https://github.com/jan-tdy/fridge-card) is the
 Lovelace UI half of this project: a custom card that shows the latest
 snapshot (with a config option to correct a crooked camera mount) and the
-To-Do items this blueprint creates as a plain, editable list (name,
-description, brand, expiration date - no checkboxes), an optional overlay
-of the bounding boxes this blueprint estimates (editable/drawable by
-hand), plus quick controls for the
-light, door status, live camera view and re-running this automation.
-Point its `todo_entity` at the same To-Do list configured above.
+To-Do items this blueprint creates as a plain, editable list - name,
+quantity, condition, an AI confidence readout, note, brand, expiration
+date, each its own field, no checkboxes - an optional overlay of the
+bounding boxes this blueprint estimates (editable/drawable by hand),
+plus quick controls for the light, door status, live camera view and
+re-running this automation. Point its `todo_entity` at the same To-Do
+list configured above.
 
 If you found this useful, please star both repos!

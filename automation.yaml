@@ -2,19 +2,21 @@ blueprint:
   name: Fridge AI Content Analyzer (English Prompt)
   description: >-
     Takes a camera snapshot when the fridge door opens, runs it through an AI
-    vision model, and creates/updates one To-Do item per recognized food item
-    (name + description + an estimated bounding box for fridge-card's
-    detection-frame overlay). The AI is told which item names were already
-    used on a previous scan (with their last known box location) and asked
-    to reuse an exact name when it thinks it's the same physical item -
-    there's no real training/memory involved, this is just per-request
-    context, so it's a best-effort nudge rather than a guarantee. Items are
-    also matched by name after the fact, so a "best before" date you set by
-    hand on the fridge-card (github.com/jan-tdy/fridge-card) survives the
-    next scan whenever the name comes back unchanged - and so do a Brand
-    you set on the card (the AI never writes to it) and a detection frame
-    you drew by hand there (an AI-estimated one still refreshes normally on
-    each scan). Items no longer detected are left in place - remove them
+    vision model, and creates/updates one To-Do item per recognized food item:
+    name plus separate quantity, condition, confidence and note fields, and an
+    estimated bounding box (for fridge-card's detection-frame overlay). The AI
+    is told which item names were already used on a previous scan (with their
+    last known box location) and asked to reuse an exact name when it thinks
+    it's the same physical item - there's no real training/memory involved,
+    this is just per-request context, so it's a best-effort nudge rather than
+    a guarantee. Items are also matched by name after the fact, so a "best
+    before" date you set by hand on the fridge-card
+    (github.com/jan-tdy/fridge-card) survives the next scan whenever the name
+    comes back unchanged - and so does anything you edit by hand there:
+    quantity, condition, note, Brand and a hand-drawn detection frame all
+    stay put on the next scan instead of being overwritten by a fresh AI
+    guess. Confidence is always the AI's latest estimate, since the AI - not
+    you - sets it. Items no longer detected are left in place - remove them
     yourself once you've used them up.
   domain: automation
   source_url: https://github.com
@@ -115,7 +117,7 @@ actions:
       existing_hints: >-
         {% set ns3 = namespace(parts=[]) %}
         {% for it in existing_items[todo_entity]['items'] %}
-          {% set b = it.description | regex_findall('\[\[box:([\d.,]+)\]\]') %}
+          {% set b = it.description | regex_findall('\[\[box:([\d.,]+?)(?:,m)?\]\]') %}
           {% set hint = it.summary ~ (' (previously around box ' ~ b[0] ~ ')' if b else '') %}
           {% set ns3.parts = ns3.parts + [hint] %}
         {% endfor %}
@@ -127,10 +129,13 @@ actions:
       instructions: >-
         Please generate a comprehensive inventory list of every item visible inside the refrigerator.
         Do not use vague language like 'I don't know', 'maybe', or 'perhaps'.
-        Format the output exclusively as a Markdown list. For each item also estimate its
-        location in the photo as a bounding box: the percentage (0-100, measured from the
-        top-left corner) of the image width/height for the box's left, top, right and bottom
-        edges, in that order.
+        Format the output exclusively as a Markdown list. For each item, output exactly these
+        fields in this order, separated by semicolons - always include every field, using 'none'
+        for confidence/note/box only if you truly cannot provide one:
+        "- <name>; qty: <quantity, e.g. '2 pieces'>; condition: <state, e.g. 'opened'/'unopened'>;
+        confidence: <your confidence in this identification, 0-100>; note: <anything else worth
+        noting, or 'none'>; box: <left,top,right,bottom - the item's location in the photo as a
+        percentage (0-100, measured from the top-left corner) of the image width/height>"
 
         {%- if existing_hints %}
 
@@ -143,16 +148,17 @@ actions:
         {%- endif %}
 
         Example format (a standard response may contain up to 20 lines):
-        " - Butter [conf. 82%]; **2 pieces**; opened [conf. 08%]; *N/A*; box: 12,34,26,41
-        - Strawberry Yogurt [conf. 65%]; **6 pieces**; unopened [conf. 92%]; *small white cup*; box: 55,30,72,48"
+        " - Butter; qty: 2 pieces; condition: opened; confidence: 82; note: none; box: 12,34,26,41
+        - Strawberry Yogurt; qty: 6 pieces; condition: unopened; confidence: 65; note: small white cup; box: 55,30,72,48"
 
         CRITICAL RULES:
         1. Never include conversational filler like 'Based on the provided photo, I see...' Output only the raw data.
-        2. Never use broad categories like 'vegetables' or 'bag'. State exactly what specific item you believe it is alongside your confidence score, e.g., 'broccoli [conf. 75%]'.
+        2. Never use broad categories like 'vegetables' or 'bag'. State exactly what specific item you believe it is, e.g. 'broccoli' rather than 'vegetable'.
         3. If the fridge appears completely empty, reply exactly with: 'Error: {empty}'
         4. If the camera is blocked or only a blank white door panel is visible, reply exactly with: 'Error: {closed}'
+        5. Keep the field names ('qty', 'condition', 'confidence', 'note', 'box') exactly as shown, in English, regardless of output language.
         {%- if ai_language == 'slovak' %}
-        5. Write the item names and the free-text parts (quantity, condition, notes) in Slovak, e.g. 'maslo' instead of 'butter', 'otvorené'/'neotvorené' instead of 'opened'/'unopened'. Keep the structural markup exactly as in the example - the semicolons, '[conf. NN%]', 'box: x,y,x,y' and the bold/italic asterisks - only translate the words.
+        6. Write the item name and the qty/condition/note VALUES in Slovak, e.g. 'maslo' instead of 'butter', 'otvorené'/'neotvorené' instead of 'opened'/'unopened'. Field names stay in English, as in rule 5.
         {%- endif %}
       attachments:
         media_content_id: media-source://media_source/fridge/fridge_latest.jpg
@@ -174,33 +180,40 @@ actions:
       entity_id: !input flashlight
 
   - variables:
-      # Parse the AI's markdown list ("- Name [conf. NN%]; **qty**; status
-      # [conf. NN%]; *notes*; box: x1,y1,x2,y2") into
-      # [{name, description}, ...], where description already carries a
-      # trailing "[[box:x1,y1,x2,y2]]" marker for fridge-card's detection
-      # frames whenever the AI provided one. Lines that don't start with
-      # "-" (including the "Error: {empty}" / "Error: {closed}" replies)
-      # are silently skipped.
+      # Parse the AI's markdown list ("- Name; qty: ...; condition: ...;
+      # confidence: NN; note: ...; box: x1,y1,x2,y2") into
+      # [{name, qty, condition, confidence, note, box}, ...] - each field kept
+      # separate so fridge-card can show/edit them individually and so a
+      # manual correction to one field (see the repeat loop below) doesn't
+      # require touching the others. Lines that don't start with "-"
+      # (including the "Error: {empty}" / "Error: {closed}" replies) are
+      # silently skipped, as are unrecognized field names.
       fridge_items: >-
         {% set ns = namespace(items=[]) %}
         {% for raw_line in sum_fridge.data.split('\n') %}
           {% set line = raw_line.strip() %}
           {% if line.startswith('-') %}
             {% set all_parts = line[1:].strip().split(';') %}
-            {% set ns2 = namespace(desc_parts=[], box='') %}
-            {% for p in all_parts %}
+            {% set name = all_parts[0] | trim %}
+            {% set ns2 = namespace(qty='', condition='', confidence='', note='', box='') %}
+            {% for p in all_parts[1:] %}
               {% set pt = p.strip() %}
-              {% if pt.lower().startswith('box') %}
-                {% set ns2.box = (pt.split(':', 1)[1].strip() if ':' in pt else '') %}
-              {% else %}
-                {% set ns2.desc_parts = ns2.desc_parts + [pt] %}
+              {% set key = (pt.split(':', 1)[0].strip().lower() if ':' in pt else '') %}
+              {% set val = (pt.split(':', 1)[1].strip() if ':' in pt else '') %}
+              {% if key == 'qty' and val.lower() != 'none' %}
+                {% set ns2.qty = val %}
+              {% elif key == 'condition' and val.lower() != 'none' %}
+                {% set ns2.condition = val %}
+              {% elif key in ['confidence', 'conf'] and val.lower() != 'none' %}
+                {% set ns2.confidence = val %}
+              {% elif key == 'note' and val.lower() != 'none' %}
+                {% set ns2.note = val %}
+              {% elif key == 'box' and val.lower() != 'none' %}
+                {% set ns2.box = val %}
               {% endif %}
             {% endfor %}
-            {% set name = ns2.desc_parts[0] | regex_replace('\s*\[conf\.[^\]]*\]', '') | regex_replace('\*+', '') | trim %}
-            {% set rest = ns2.desc_parts[1:] | map('regex_replace', '\*+', '') | list | join(' · ') %}
-            {% set description = rest ~ (' [[box:' ~ ns2.box ~ ']]' if ns2.box else '') %}
             {% if name | length > 0 %}
-              {% set ns.items = ns.items + [{'name': name, 'description': description}] %}
+              {% set ns.items = ns.items + [{'name': name, 'qty': ns2.qty, 'condition': ns2.condition, 'confidence': ns2.confidence, 'note': ns2.note, 'box': ns2.box}] %}
             {% endif %}
           {% endif %}
         {% endfor %}
@@ -223,13 +236,30 @@ actions:
             preserved_brand_raw: >-
               {{ existing_desc | regex_replace('.*(\[\[brand:[^\]]*\]\]).*', '\\1') }}
             preserved_brand: '{{ preserved_brand_raw if preserved_brand_raw != existing_desc else "" }}'
-            ai_box_raw: >-
-              {{ repeat.item.description | regex_replace('.*(\[\[box:[^\]]*\]\]).*', '\\1') }}
-            ai_box: '{{ ai_box_raw if ai_box_raw != repeat.item.description else "" }}'
-            ai_text: >-
-              {{ repeat.item.description | regex_replace('\s*\[\[box:[^\]]*\]\]\s*', ' ') | trim }}
+            # Quantity/condition/note each carry the same idea as the box:
+            # a "...m" marker key means it was edited on fridge-card, so it's
+            # kept as-is; otherwise the AI's fresh value for this scan is
+            # used. Confidence is always the AI's own latest estimate.
+            qtym_raw: >-
+              {{ existing_desc | regex_replace('.*\[\[qtym:([^\]]*)\]\].*', '\\1') }}
+            qtym: '{{ qtym_raw if qtym_raw != existing_desc else none }}'
+            condm_raw: >-
+              {{ existing_desc | regex_replace('.*\[\[condm:([^\]]*)\]\].*', '\\1') }}
+            condm: '{{ condm_raw if condm_raw != existing_desc else none }}'
+            notem_raw: >-
+              {{ existing_desc | regex_replace('.*\[\[notem:([^\]]*)\]\].*', '\\1') }}
+            notem: '{{ notem_raw if notem_raw != existing_desc else none }}'
+            qty_marker: >-
+              {{ ('[[qtym:' ~ qtym ~ ']]') if qtym is not none else (('[[qty:' ~ repeat.item.qty ~ ']]') if repeat.item.qty else '') }}
+            cond_marker: >-
+              {{ ('[[condm:' ~ condm ~ ']]') if condm is not none else (('[[cond:' ~ repeat.item.condition ~ ']]') if repeat.item.condition else '') }}
+            note_marker: >-
+              {{ ('[[notem:' ~ notem ~ ']]') if notem is not none else (('[[note:' ~ repeat.item.note ~ ']]') if repeat.item.note else '') }}
+            conf_marker: >-
+              {{ ('[[conf:' ~ repeat.item.confidence ~ ']]') if repeat.item.confidence else '' }}
+            ai_box: '{{ ("[[box:" ~ repeat.item.box ~ "]]") if repeat.item.box else "" }}'
             final_description: >-
-              {{ (ai_text ~ ' ' ~ (preserved_box if preserved_box else ai_box) ~ ' ' ~ preserved_brand) | trim }}
+              {{ [qty_marker, cond_marker, note_marker, conf_marker, (preserved_box if preserved_box else ai_box), preserved_brand] | select | join(' ') | trim }}
         - choose:
             - conditions:
                 - condition: template
@@ -247,4 +277,4 @@ actions:
                 entity_id: !input todo_list
               data:
                 item: '{{ repeat.item.name }}'
-                description: '{{ repeat.item.description }}'
+                description: '{{ final_description }}'
