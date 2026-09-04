@@ -87,12 +87,14 @@ actions:
       milliseconds: 435
 
   - action: camera.snapshot
+    continue_on_error: true
     target:
       entity_id: !input camera_feed
     data:
       filename: /config/www/fridge/fridge_latest.jpg
 
   - action: todo.get_items
+    continue_on_error: true
     target:
       entity_id: !input todo_list
     data:
@@ -109,9 +111,11 @@ actions:
       # it) instead of duplicating it, and so the Brand/manually-drawn box
       # markers in its description can be carried forward - see the repeat
       # loop below.
+      existing_items_list: >-
+        {{ existing_items[todo_entity]['items'] if existing_items is defined and todo_entity in existing_items else [] }}
       existing_list: >-
         {% set ns2 = namespace(list=[]) %}
-        {% for it in existing_items[todo_entity]['items'] %}
+        {% for it in existing_items_list %}
           {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid, 'description': it.description | default('')}] %}
         {% endfor %}
         {{ ns2.list }}
@@ -120,7 +124,7 @@ actions:
       # instead of us guessing sameness by box overlap after the fact.
       existing_hints: >-
         {% set ns3 = namespace(parts=[]) %}
-        {% for it in existing_items[todo_entity]['items'] %}
+        {% for it in existing_items_list %}
           {% set b = it.description | regex_findall('\[\[box:([\d.,]+?)(?:,m)?\]\]') %}
           {% set hint = it.summary ~ (' (previously around box ' ~ b[0] ~ ')' if b else '') %}
           {% set ns3.parts = ns3.parts + [hint] %}
@@ -128,6 +132,7 @@ actions:
         {{ ns3.parts | join('; ') }}
 
   - action: ai_task.generate_data
+    continue_on_error: true
     data:
       task_name: Fridge summary
       instructions: >-
@@ -182,6 +187,11 @@ actions:
   - action: light.turn_off
     target:
       entity_id: !input flashlight
+
+  # Stop here (quietly, no error) if the AI task above failed - there is
+  # nothing to parse, and the light is already off by this point.
+  - condition: template
+    value_template: '{{ sum_fridge is defined and sum_fridge.data is defined }}'
 
   - variables:
       # Parse the AI's markdown list ("- Name; qty: ...; condition: ...;
