@@ -62,6 +62,26 @@ blueprint:
               value: english
             - label: Slovenčina
               value: slovak
+    photo_delay:
+      name: Snapshot Delay
+      description: >-
+        How long to wait after turning on the light before taking the
+        photo, so the fridge interior is fully lit.
+      default:
+        seconds: 2
+        milliseconds: 435
+      selector:
+        duration: {}
+    ai_delay:
+      name: AI Analyze Delay
+      description: >-
+        How long to wait after taking the photo before sending it to the
+        AI for analysis, e.g. to give the door time to settle or the
+        camera to finish saving the file.
+      default:
+        seconds: 0
+      selector:
+        duration: {}
 
 mode: single
 
@@ -80,11 +100,7 @@ actions:
     target:
       entity_id: !input flashlight
 
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 2
-      milliseconds: 435
+  - delay: !input photo_delay
 
   - action: camera.snapshot
     continue_on_error: true
@@ -130,6 +146,8 @@ actions:
           {% set ns3.parts = ns3.parts + [hint] %}
         {% endfor %}
         {{ ns3.parts | join('; ') }}
+
+  - delay: !input ai_delay
 
   - action: ai_task.generate_data
     continue_on_error: true

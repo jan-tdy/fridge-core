@@ -48,6 +48,12 @@ The **AI Output Language** blueprint input switches the item
 names/descriptions between English and Slovenčina; the structural
 markup (confidence scores, box coordinates) is unaffected.
 
+Two delays are also configurable as blueprint inputs: **Snapshot Delay**
+(how long to wait after turning on the light before taking the photo,
+default 2.435s, to let the fridge interior get fully lit) and **AI
+Analyze Delay** (how long to wait after taking the photo before sending
+it to the AI, default 0s).
+
 ### Prerequisites
 1. **AI Integration:** You must have an extended AI conversation or task integration configured (like `Google Generative AI` or `OpenAI Conversation`) that provides the `ai_task.generate_data` action.
 2. **Folder Creation:** Ensure the folder `/config/www/fridge/` exists in your Home Assistant configuration directory to allow the camera snapshot to save correctly.
