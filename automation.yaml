@@ -19,7 +19,10 @@ blueprint:
     you - sets it. Items no longer detected are left in place - remove them
     yourself once you've used them up. An item marked eaten on the card is
     reactivated (not duplicated) if a later scan still recognizes it under
-    the same name - it was evidently still there.
+    the same name - it was evidently still there. AI detection can be
+    turned off entirely via the "Enable AI Detection" input, in which case
+    only the snapshot is taken and the light still cycles - no AI request
+    is made and the To-Do list is left untouched.
   domain: automation
   source_url: https://github.com
   input:
@@ -82,6 +85,16 @@ blueprint:
         seconds: 0
       selector:
         duration: {}
+    ai_detection_enabled:
+      name: Enable AI Detection
+      description: >-
+        Turn off to skip the AI vision analysis and To-Do list update
+        entirely - the snapshot is still taken and the light still
+        cycles, but no AI request is made and the To-Do list is left
+        untouched.
+      default: true
+      selector:
+        boolean: {}
 
 mode: single
 
@@ -96,6 +109,9 @@ trigger:
 conditions: []
 
 actions:
+  - variables:
+      ai_detection_enabled: !input ai_detection_enabled
+
   - action: light.turn_on
     target:
       entity_id: !input flashlight
@@ -109,92 +125,96 @@ actions:
     data:
       filename: /config/www/fridge/fridge_latest.jpg
 
-  - action: todo.get_items
-    continue_on_error: true
-    target:
-      entity_id: !input todo_list
-    data:
-      status:
-        - needs_action
-        - completed
-    response_variable: existing_items
+  - if:
+      - condition: template
+        value_template: '{{ ai_detection_enabled }}'
+    then:
+      - action: todo.get_items
+        continue_on_error: true
+        target:
+          entity_id: !input todo_list
+        data:
+          status:
+            - needs_action
+            - completed
+        response_variable: existing_items
 
-  - variables:
-      todo_entity: !input todo_list
-      ai_language: !input ai_language
-      # Existing items as [{name_lower, uid, description}, ...], so
-      # re-scans update an item in place (keeping any due date you set on
-      # it) instead of duplicating it, and so the Brand/manually-drawn box
-      # markers in its description can be carried forward - see the repeat
-      # loop below.
-      existing_items_list: >-
-        {{ existing_items[todo_entity]['items'] if existing_items is defined and todo_entity in existing_items else [] }}
-      existing_list: >-
-        {% set ns2 = namespace(list=[]) %}
-        {% for it in existing_items_list %}
-          {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid, 'description': it.description | default('')}] %}
-        {% endfor %}
-        {{ ns2.list }}
-      # "Name (previously around box x1,y1,x2,y2)" per existing item, fed
-      # into the AI prompt below so it can try to reuse a name itself
-      # instead of us guessing sameness by box overlap after the fact.
-      existing_hints: >-
-        {% set ns3 = namespace(parts=[]) %}
-        {% for it in existing_items_list %}
-          {% set b = it.description | regex_findall('\[\[box:([\d.,]+?)(?:,m)?\]\]') %}
-          {% set hint = it.summary ~ (' (previously around box ' ~ b[0] ~ ')' if b else '') %}
-          {% set ns3.parts = ns3.parts + [hint] %}
-        {% endfor %}
-        {{ ns3.parts | join('; ') }}
+      - variables:
+          todo_entity: !input todo_list
+          ai_language: !input ai_language
+          # Existing items as [{name_lower, uid, description}, ...], so
+          # re-scans update an item in place (keeping any due date you set on
+          # it) instead of duplicating it, and so the Brand/manually-drawn box
+          # markers in its description can be carried forward - see the repeat
+          # loop below.
+          existing_items_list: >-
+            {{ existing_items[todo_entity]['items'] if existing_items is defined and todo_entity in existing_items else [] }}
+          existing_list: >-
+            {% set ns2 = namespace(list=[]) %}
+            {% for it in existing_items_list %}
+              {% set ns2.list = ns2.list + [{'name_lower': it.summary | lower | trim, 'uid': it.uid, 'description': it.description | default('')}] %}
+            {% endfor %}
+            {{ ns2.list }}
+          # "Name (previously around box x1,y1,x2,y2)" per existing item, fed
+          # into the AI prompt below so it can try to reuse a name itself
+          # instead of us guessing sameness by box overlap after the fact.
+          existing_hints: >-
+            {% set ns3 = namespace(parts=[]) %}
+            {% for it in existing_items_list %}
+              {% set b = it.description | regex_findall('\[\[box:([\d.,]+?)(?:,m)?\]\]') %}
+              {% set hint = it.summary ~ (' (previously around box ' ~ b[0] ~ ')' if b else '') %}
+              {% set ns3.parts = ns3.parts + [hint] %}
+            {% endfor %}
+            {{ ns3.parts | join('; ') }}
 
-  - delay: !input ai_delay
+      - delay: !input ai_delay
 
-  - action: ai_task.generate_data
-    continue_on_error: true
-    data:
-      task_name: Fridge summary
-      instructions: >-
-        Please generate a comprehensive inventory list of every item visible inside the refrigerator.
-        Do not use vague language like 'I don't know', 'maybe', or 'perhaps'.
-        Format the output exclusively as a Markdown list. For each item, output exactly these
-        fields in this order, separated by semicolons - always include every field, using 'none'
-        for confidence/note/box only if you truly cannot provide one:
-        "- <name>; qty: <quantity, e.g. '2 pieces'>; condition: <state, e.g. 'opened'/'unopened'>;
-        confidence: <your confidence in this identification, 0-100>; note: <anything else worth
-        noting, or 'none'>; box: <left,top,right,bottom - the item's location in the photo as a
-        percentage (0-100, measured from the top-left corner) of the image width/height>"
+      - action: ai_task.generate_data
+        continue_on_error: true
+        data:
+          task_name: Fridge summary
+          instructions: >-
+            Please generate a comprehensive inventory list of every item visible inside the refrigerator.
+            Do not use vague language like 'I don't know', 'maybe', or 'perhaps'.
+            Format the output exclusively as a Markdown list. For each item, output exactly these
+            fields in this order, separated by semicolons - always include every field, using 'none'
+            for confidence/note/box only if you truly cannot provide one:
+            "- <name>; qty: <quantity, e.g. '2 pieces'>; condition: <state, e.g. 'opened'/'unopened'>;
+            confidence: <your confidence in this identification, 0-100>; note: <anything else worth
+            noting, or 'none'>; box: <left,top,right,bottom - the item's location in the photo as a
+            percentage (0-100, measured from the top-left corner) of the image width/height>"
 
-        {%- if existing_hints %}
+            {%- if existing_hints %}
 
-        These items were already identified in a previous scan of this same fridge:
-        {{ existing_hints }}. If an item you see now is the same physical item as one of
-        these (even if it looks slightly different - a different angle, partially eaten,
-        different lighting - or sits at roughly the same box location as before), reuse its
-        EXACT name from that list instead of inventing a new one. Only use a new name for
-        something that is genuinely not in that list.
-        {%- endif %}
+            These items were already identified in a previous scan of this same fridge:
+            {{ existing_hints }}. If an item you see now is the same physical item as one of
+            these (even if it looks slightly different - a different angle, partially eaten,
+            different lighting - or sits at roughly the same box location as before), reuse its
+            EXACT name from that list instead of inventing a new one. Only use a new name for
+            something that is genuinely not in that list.
+            {%- endif %}
 
-        Example format (a standard response may contain up to 20 lines):
-        " - Butter; qty: 2 pieces; condition: opened; confidence: 82; note: none; box: 12,34,26,41
-        - Strawberry Yogurt; qty: 6 pieces; condition: unopened; confidence: 65; note: small white cup; box: 55,30,72,48"
+            Example format (a standard response may contain up to 20 lines):
+            " - Butter; qty: 2 pieces; condition: opened; confidence: 82; note: none; box: 12,34,26,41
+            - Strawberry Yogurt; qty: 6 pieces; condition: unopened; confidence: 65; note: small white cup; box: 55,30,72,48"
 
-        CRITICAL RULES:
-        1. Never include conversational filler like 'Based on the provided photo, I see...' Output only the raw data.
-        2. Never use broad categories like 'vegetables' or 'bag'. State exactly what specific item you believe it is, e.g. 'broccoli' rather than 'vegetable'.
-        3. If the fridge appears completely empty, reply exactly with: 'Error: {empty}'
-        4. If the camera is blocked or only a blank white door panel is visible, reply exactly with: 'Error: {closed}'
-        5. Keep the field names ('qty', 'condition', 'confidence', 'note', 'box') exactly as shown, in English, regardless of output language.
-        {%- if ai_language == 'slovak' %}
-        6. Write the item name and the qty/condition/note VALUES in Slovak, e.g. 'maslo' instead of 'butter', 'otvorené'/'neotvorené' instead of 'opened'/'unopened'. Field names stay in English, as in rule 5.
-        {%- endif %}
-      attachments:
-        media_content_id: media-source://media_source/fridge/fridge_latest.jpg
-        media_content_type: image/jpeg
-        metadata:
-          title: Fridge Snapshot
-          thumbnail: /local/fridge/fridge_latest.jpg
-          media_class: image
-    response_variable: sum_fridge
+            CRITICAL RULES:
+            1. Never include conversational filler like 'Based on the provided photo, I see...' Output only the raw data.
+            2. Never use broad categories like 'vegetables' or 'bag'. State exactly what specific item you believe it is, e.g. 'broccoli' rather than 'vegetable'.
+            3. If the fridge appears completely empty, reply exactly with: 'Error: {empty}'
+            4. If the camera is blocked or only a blank white door panel is visible, reply exactly with: 'Error: {closed}'
+            5. Keep the field names ('qty', 'condition', 'confidence', 'note', 'box') exactly as shown, in English, regardless of output language.
+            {%- if ai_language == 'slovak' %}
+            6. Write the item name and the qty/condition/note VALUES in Slovak, e.g. 'maslo' instead of 'butter', 'otvorené'/'neotvorené' instead of 'opened'/'unopened'. Field names stay in English, as in rule 5.
+            {%- endif %}
+          attachments:
+            media_content_id: media-source://media_source/fridge/fridge_latest.jpg
+            media_content_type: image/jpeg
+            metadata:
+              title: Fridge Snapshot
+              thumbnail: /local/fridge/fridge_latest.jpg
+              media_class: image
+        response_variable: sum_fridge
 
   - delay:
       hours: 0
@@ -206,8 +226,9 @@ actions:
     target:
       entity_id: !input flashlight
 
-  # Stop here (quietly, no error) if the AI task above failed - there is
-  # nothing to parse, and the light is already off by this point.
+  # Stop here (quietly, no error) if AI detection is disabled or the AI
+  # task above failed - there is nothing to parse, and the light is
+  # already off by this point.
   - condition: template
     value_template: '{{ sum_fridge is defined and sum_fridge.data is defined }}'
 
