@@ -54,6 +54,12 @@ default 2.435s, to let the fridge interior get fully lit) and **AI
 Analyze Delay** (how long to wait after taking the photo before sending
 it to the AI, default 0s).
 
+The **Enable AI Detection** toggle (on by default) lets you turn off the
+AI analysis and To-Do list update without disabling the automation
+itself: with it off, the door still triggers a snapshot and the light
+still cycles, but no AI request is made and the To-Do list is left
+untouched.
+
 ### Prerequisites
 1. **AI Integration:** You must have an extended AI conversation or task integration configured (like `Google Generative AI` or `OpenAI Conversation`) that provides the `ai_task.generate_data` action.
 2. **Folder Creation:** Ensure the folder `/config/www/fridge/` exists in your Home Assistant configuration directory to allow the camera snapshot to save correctly.
