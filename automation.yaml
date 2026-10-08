@@ -19,7 +19,10 @@ blueprint:
     you - sets it. Items no longer detected are left in place - remove them
     yourself once you've used them up. An item marked eaten on the card is
     reactivated (not duplicated) if a later scan still recognizes it under
-    the same name - it was evidently still there. AI detection can be
+    the same name - it was evidently still there. If one scan recognizes
+    two separate items under the same name, only the first claims the
+    existing To-Do item; the second gets a new entry of its own rather than
+    overwriting the first. AI detection can be
     turned off entirely via the "Enable AI Detection" input, in which case
     only the snapshot is taken and the light still cycles - no AI request
     is made and the To-Do list is left untouched.
@@ -271,6 +274,12 @@ actions:
           {% endif %}
         {% endfor %}
         {{ ns.items }}
+      # uids of existing items already claimed by an earlier item in this
+      # same scan - without this, two freshly detected items sharing a name
+      # (e.g. two identical yogurts) would both match the one pre-existing
+      # To-Do item and silently collapse onto it, with the second
+      # todo.update_item call overwriting the first.
+      consumed_uids: []
 
   - repeat:
       for_each: '{{ fridge_items }}'
@@ -278,7 +287,9 @@ actions:
         - variables:
             match: >-
               {{ existing_list | selectattr('name_lower', 'equalto', repeat.item.name | lower | trim)
+                 | rejectattr('uid', 'in', consumed_uids)
                  | list | first | default(none) }}
+            consumed_uids: '{{ (consumed_uids + [match.uid]) if match is not none else consumed_uids }}'
             existing_desc: '{{ match.description if match else "" }}'
             # A box is only preserved if it carries fridge-card's ",m" flag
             # (drawn by hand there) - an AI-set box without that flag is

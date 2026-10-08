@@ -32,7 +32,10 @@ the AI's latest estimate, since only the AI ever sets it. Items no
 longer detected are left alone - remove them yourself once you've used
 them up. An item marked eaten on the card is reactivated - not
 duplicated - if a later scan still recognizes it under the same name;
-it was evidently still there.
+it was evidently still there. If a single scan recognizes two separate
+items under the same name (e.g. two identical yogurts), only the first
+is matched to the existing To-Do item; the second gets its own new
+entry instead of overwriting the first.
 
 The AI is also told which item names were already used in a previous
 scan (with their last known box location) and asked to reuse an exact
