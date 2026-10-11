@@ -4,6 +4,7 @@ If you found this useful, please star this repo.
 An ESPHome configuration for an ESP32-CAM tailored for monitoring a refrigerator interior. Includes video streaming, a toggleable flashlight, and a reed-switch door sensor.
 
 You can mount it inside or outside the fridge, but... Just do it how you want...
+I have it on a cardboard box in front of the fridge, powered by a power bank.
 
 ## Hardware Setup
 * **Camera:** AI Thinker ESP32-CAM module.
@@ -19,7 +20,7 @@ You can mount it inside or outside the fridge, but... Just do it how you want...
 
 This blueprint takes a snapshot when the door opens, sends it to an AI
 vision model, and creates or updates one To-Do item per recognized food
-item: name plus separate quantity, condition, confidence and note fields,
+item: name plus separate quantity, condition, confidence, and note fields,
 and an estimated bounding box (for
 [fridge-card](https://github.com/jan-tdy/fridge-card)'s detection-frame
 overlay). Items already in the list are matched by name, so an
