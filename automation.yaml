@@ -145,16 +145,6 @@ actions:
             - completed
         response_variable: existing_items
 
-      # continue_on_error allows the automation to continue when the To-Do
-      # service fails, but without a successful response the matching list is
-      # empty and every detected item would be added again. Stop before AI
-      # processing unless we have the requested entity's items.
-      - condition: template
-        value_template: >-
-          {{ existing_items is defined
-             and todo_entity in existing_items
-             and existing_items[todo_entity].items is defined }}
-
       - variables:
           ai_language: !input ai_language
           # Existing items as [{name_lower, uid, description}, ...], so
@@ -240,6 +230,17 @@ actions:
   - action: light.turn_off
     target:
       entity_id: !input flashlight
+
+  # continue_on_error allows the automation to continue when the To-Do
+  # service fails, but without a successful response the matching list is
+  # empty and every detected item would be added again. Stop here (the
+  # light is already off by this point) unless we have the requested
+  # entity's items.
+  - condition: template
+    value_template: >-
+      {{ existing_items is defined
+         and todo_entity in existing_items
+         and existing_items[todo_entity]['items'] is defined }}
 
   # Stop here (quietly, no error) if AI detection is disabled or the AI
   # task above failed - there is nothing to parse, and the light is
