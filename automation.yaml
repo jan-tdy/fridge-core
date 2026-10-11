@@ -132,6 +132,9 @@ actions:
       - condition: template
         value_template: '{{ ai_detection_enabled }}'
     then:
+      - variables:
+          todo_entity: !input todo_list
+
       - action: todo.get_items
         continue_on_error: true
         target:
@@ -142,8 +145,17 @@ actions:
             - completed
         response_variable: existing_items
 
+      # continue_on_error allows the automation to continue when the To-Do
+      # service fails, but without a successful response the matching list is
+      # empty and every detected item would be added again. Stop before AI
+      # processing unless we have the requested entity's items.
+      - condition: template
+        value_template: >-
+          {{ existing_items is defined
+             and todo_entity in existing_items
+             and existing_items[todo_entity].items is defined }}
+
       - variables:
-          todo_entity: !input todo_list
           ai_language: !input ai_language
           # Existing items as [{name_lower, uid, description}, ...], so
           # re-scans update an item in place (keeping any due date you set on
