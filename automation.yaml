@@ -114,6 +114,7 @@ conditions: []
 actions:
   - variables:
       ai_detection_enabled: !input ai_detection_enabled
+      snapshot_id: "{{ now().strftime('%Y%m%d_%H%M%S_%f') }}"
 
   - action: light.turn_on
     target:
@@ -126,7 +127,13 @@ actions:
     target:
       entity_id: !input camera_feed
     data:
-      filename: /config/www/fridge/fridge_latest.jpg
+      filename: "/config/www/fridge/fridge_{{ snapshot_id }}.jpg"
+
+  # Turn the light off as soon as the photo has been captured. continue_on_error
+  # on camera.snapshot lets this cleanup run even when the camera is unavailable.
+  - action: light.turn_off
+    target:
+      entity_id: !input flashlight
 
   - if:
       - condition: template
@@ -213,23 +220,13 @@ actions:
             6. Write the item name and the qty/condition/note VALUES in Slovak, e.g. 'maslo' instead of 'butter', 'otvorené'/'neotvorené' instead of 'opened'/'unopened'. Field names stay in English, as in rule 5.
             {%- endif %}
           attachments:
-            media_content_id: media-source://media_source/fridge/fridge_latest.jpg
+            media_content_id: "media-source://media_source/fridge/fridge_{{ snapshot_id }}.jpg"
             media_content_type: image/jpeg
             metadata:
               title: Fridge Snapshot
-              thumbnail: /local/fridge/fridge_latest.jpg
+              thumbnail: "/local/fridge/fridge_{{ snapshot_id }}.jpg"
               media_class: image
         response_variable: sum_fridge
-
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 1
-      milliseconds: 250
-
-  - action: light.turn_off
-    target:
-      entity_id: !input flashlight
 
   # continue_on_error allows the automation to continue when the To-Do
   # service fails, but without a successful response the matching list is
