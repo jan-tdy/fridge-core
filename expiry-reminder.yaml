@@ -1,0 +1,89 @@
+blueprint:
+  name: Fridge Expiry Reminder
+  description: >-
+    Checks active items in a To-Do list once a day and sends a notification
+    for items due today, overdue, or due within the configured lead time.
+  domain: automation
+  source_url: https://github.com/jan-tdy/fridge-core/blob/main/expiry-reminder.yaml
+  input:
+    todo_list:
+      name: Fridge To-Do list
+      description: The list whose active items have due dates.
+      selector:
+        entity:
+          domain: todo
+    notify_target:
+      name: Notification target
+      description: Choose a notify entity that supports notify.send_message.
+      selector:
+        entity:
+          domain: notify
+    notification_time:
+      name: Daily notification time
+      default: "09:00:00"
+      selector:
+        time: {}
+    lead_days:
+      name: Reminder lead time
+      description: Include items due within this many days. Overdue items are always included.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 30
+          step: 1
+          mode: box
+
+trigger:
+  - platform: time
+    at: !input notification_time
+
+variables:
+  todo_entity: !input todo_list
+  lead_days: !input lead_days
+
+actions:
+  - action: todo.get_items
+    target:
+      entity_id: !input todo_list
+    data:
+      status:
+        - needs_action
+    response_variable: todo_response
+
+  - variables:
+      fridge_items: >-
+        {{ todo_response[todo_entity]['items']
+           if todo_response is defined
+              and todo_entity in todo_response
+              and todo_response[todo_entity]['items'] is defined
+           else [] }}
+
+  - repeat:
+      for_each: "{{ fridge_items }}"
+      sequence:
+        - if:
+            - condition: template
+              value_template: >-
+                {% if repeat.item.due is defined and repeat.item.due %}
+                  {% set due = as_datetime(repeat.item.due, default=none) %}
+                  {{ due is not none
+                     and due.date() <= (now().date() + timedelta(days=lead_days | int(0))) }}
+                {% else %}
+                  false
+                {% endif %}
+          then:
+            - action: notify.send_message
+              target:
+                entity_id: !input notify_target
+              data:
+                title: Fridge expiry reminder
+                message: >-
+                  {% set due = as_datetime(repeat.item.due, default=none) %}
+                  {% if due.date() < now().date() %}
+                    OVERDUE: {{ repeat.item.summary }} (due {{ due.date() }})
+                  {% else %}
+                    {{ repeat.item.summary }} is due {{ due.date() }}
+                  {% endif %}
+
+mode: single

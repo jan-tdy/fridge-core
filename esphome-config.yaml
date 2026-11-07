@@ -5,6 +5,8 @@
 # wifi_ssid: "Your_WiFi_Name"
 # wifi_password: "Your_WiFi_Password"
 # fridgecam_api_key: "Generated_32_Byte_Base64_Key"
+# fridge_ap_password: "A_unique_fallback_AP_password"
+# fridge_ota_password: "A_unique_OTA_password"
 # =========================================================================
 
 substitutions:
@@ -28,12 +30,14 @@ psram:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  ap: {}
+  ap:
+    password: !secret fridge_ap_password
 
 captive_portal:
 
 ota:
   - platform: esphome
+    password: !secret fridge_ota_password
 
 # Native Home Assistant API configuration
 api:
@@ -84,6 +88,9 @@ binary_sensor:
     pin:
       number: GPIO13
       mode: INPUT_PULLUP
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
 
 # Deep sleep - DISABLED, feel free to enable
 # deep_sleep:

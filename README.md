@@ -14,7 +14,7 @@ I have it on a cardboard box in front of the fridge, powered by a power bank.
 ## How to Use
 1. Copy the contents of `esphome-config.yaml` into your ESPHome environment.
 2. Edit the top `substitutions:` block to match your preferred names and area.
-3. Ensure your local `secrets.yaml` contains the required keys: `wifi_ssid`, `wifi_password`, and `fridgecam_api_key`.
+3. Ensure your local `secrets.yaml` contains `wifi_ssid`, `wifi_password`, `fridgecam_api_key`, `fridge_ap_password`, and `fridge_ota_password`. Use separate, strong passwords for the fallback access point and OTA.
 4. Flash the device.
 5. Home Assistant AI Automation Setup
 
@@ -64,6 +64,12 @@ itself: with it off, the door still triggers a snapshot and the light
 still cycles, but no AI request is made and the To-Do list is left
 untouched.
 
+Optionally select an `input_text` helper for **Scan status** and an
+`input_datetime` helper for **Last scan time** in the blueprint. The
+status reports scanning, successful item count, an empty fridge, a
+blocked/closed camera, or a failed AI/To-Do request. Create these helpers
+in **Settings → Devices & services → Helpers**.
+
 ### Prerequisites
 1. **AI Integration:** You must have an extended AI conversation or task integration configured (like `Google Generative AI` or `OpenAI Conversation`) that provides the `ai_task.generate_data` action.
 2. **Folder Creation:** Ensure the folder `/config/www/fridge/` exists in your Home Assistant configuration directory to allow the camera snapshot to save correctly.
@@ -74,7 +80,14 @@ Click the button below or copy your raw file link directly into the **Settings >
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fjan-tdy%2Ffridge-core%2Fblob%2Fmain%2Fautomation.yaml)
 
-### Optional: saved snapshot history
+Import the optional expiry reminder blueprint:
+
+[![Import Fridge Expiry Reminder blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fjan-tdy%2Ffridge-core%2Fblob%2Fmain%2Fexpiry-reminder.yaml)
+
+The expiry reminder runs daily at the configured time. It sends one message
+for each active To-Do item due today, overdue, or due within the configured
+lead time. Select a `notify` entity that supports Home Assistant's
+`notify.send_message` action.
 
 fridge-card's **Save** and ◀ ▶ **Latest** controls let you keep a copy of
 the current photo and browse back through previously saved ones. This
