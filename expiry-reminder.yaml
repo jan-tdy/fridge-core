@@ -65,9 +65,13 @@ actions:
         - if:
             - condition: template
               value_template: >-
-                {% set due = as_datetime(repeat.item.due, default=none) %}
-                {{ due is not none
-                   and due.date() <= (now().date() + timedelta(days=lead_days | int(0))) }}
+                {% if repeat.item.due is defined and repeat.item.due %}
+                  {% set due = as_datetime(repeat.item.due, default=none) %}
+                  {{ due is not none
+                     and due.date() <= (now().date() + timedelta(days=lead_days | int(0))) }}
+                {% else %}
+                  false
+                {% endif %}
           then:
             - action: notify.send_message
               target:
