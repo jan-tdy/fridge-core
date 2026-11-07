@@ -343,9 +343,8 @@ actions:
       # [{name, qty, condition, confidence, note, box}, ...] - each field kept
       # separate so fridge-card can show/edit them individually and so a
       # manual correction to one field (see the repeat loop below) doesn't
-      # require touching the others. Lines that don't start with "-"
-      # (including the "Error: {empty}" / "Error: {closed}" replies) are
-      # silently skipped, as are unrecognized field names.
+      # require touching the others. Error replies are handled above; other
+      # lines that don't start with "-" and unrecognized fields are skipped.
       fridge_items: >-
         {% set ns = namespace(items=[]) %}
         {% for raw_line in sum_fridge.data.split('\n') %}
