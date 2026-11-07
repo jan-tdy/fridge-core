@@ -383,16 +383,6 @@ actions:
       # todo.update_item call overwriting the first.
       consumed_uids: []
 
-  - if:
-      - condition: template
-        value_template: '{{ scan_status_entity != "" }}'
-    then:
-      - action: input_text.set_value
-        target:
-          entity_id: !input scan_status_entity
-        data:
-          value: "Scan complete: {{ fridge_items | length }} items"
-
   - repeat:
       for_each: '{{ fridge_items }}'
       sequence:
@@ -460,3 +450,13 @@ actions:
               data:
                 item: '{{ repeat.item.name }}'
                 description: '{{ final_description }}'
+
+  - if:
+      - condition: template
+        value_template: '{{ scan_status_entity != "" }}'
+    then:
+      - action: input_text.set_value
+        target:
+          entity_id: !input scan_status_entity
+        data:
+          value: "Scan complete: {{ fridge_items | length }} items"
