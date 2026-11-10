@@ -137,7 +137,7 @@ actions:
     then:
       - action: input_text.set_value
         target:
-          entity_id: !input scan_status_entity
+          entity_id: "{{ scan_status_entity }}"
         data:
           value: "Scanning"
 
@@ -147,7 +147,7 @@ actions:
     then:
       - action: input_datetime.set_datetime
         target:
-          entity_id: !input last_scan_entity
+          entity_id: "{{ last_scan_entity }}"
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
 
@@ -273,7 +273,7 @@ actions:
     then:
       - action: input_text.set_value
         target:
-          entity_id: !input scan_status_entity
+          entity_id: "{{ scan_status_entity }}"
         data:
           value: "Snapshot saved; AI detection is disabled"
 
@@ -285,7 +285,7 @@ actions:
         sequence:
           - action: input_text.set_value
             target:
-              entity_id: !input scan_status_entity
+              entity_id: "{{ scan_status_entity }}"
             data:
               value: "Scan failed: To-Do list could not be read"
 
@@ -310,7 +310,7 @@ actions:
         sequence:
           - action: input_text.set_value
             target:
-              entity_id: !input scan_status_entity
+              entity_id: "{{ scan_status_entity }}"
             data:
               value: "Scan failed: AI did not return a result"
 
@@ -321,7 +321,7 @@ actions:
         sequence:
           - action: input_text.set_value
             target:
-              entity_id: !input scan_status_entity
+              entity_id: "{{ scan_status_entity }}"
             data:
               value: "Fridge empty (0 items)"
       - conditions:
@@ -330,7 +330,7 @@ actions:
         sequence:
           - action: input_text.set_value
             target:
-              entity_id: !input scan_status_entity
+              entity_id: "{{ scan_status_entity }}"
             data:
               value: "Camera blocked or fridge door closed"
 
@@ -456,6 +456,6 @@ actions:
     then:
       - action: input_text.set_value
         target:
-          entity_id: !input scan_status_entity
+          entity_id: "{{ scan_status_entity }}"
         data:
           value: "Scan complete: {{ fridge_items | length }} items"
