@@ -130,17 +130,6 @@ actions:
       ai_detection_enabled: !input ai_detection_enabled
       scan_status_entity: !input scan_status_entity
       last_scan_entity: !input last_scan_entity
-      scan_photo_filename: "fridge_{{ now().strftime('%Y%m%d%H%M%S%f') }}.jpg"
-
-  - if:
-      - condition: template
-        value_template: '{{ scan_status_entity != "" }}'
-    then:
-      - action: input_text.set_value
-        target:
-          entity_id: "{{ scan_status_entity }}"
-        data:
-          value: "Scanning"
 
   - if:
       - condition: template
@@ -160,11 +149,20 @@ actions:
   - delay: !input photo_delay
 
   - action: camera.snapshot
-    continue_on_error: true
     target:
       entity_id: !input camera_feed
     data:
-      filename: "/config/www/fridge/{{ scan_photo_filename }}"
+      filename: /config/www/fridge/fridge_latest.jpg
+
+  - if:
+      - condition: template
+        value_template: '{{ scan_status_entity != "" }}'
+    then:
+      - action: input_text.set_value
+        target:
+          entity_id: "{{ scan_status_entity }}"
+        data:
+          value: "Scanning"
 
   - if:
       - condition: template
@@ -251,11 +249,11 @@ actions:
             6. Write the item name and the qty/condition/note VALUES in Slovak, e.g. 'maslo' instead of 'butter', 'otvorené'/'neotvorené' instead of 'opened'/'unopened'. Field names stay in English, as in rule 5.
             {%- endif %}
           attachments:
-            media_content_id: "media-source://media_source/fridge/{{ scan_photo_filename }}"
+            media_content_id: media-source://media_source/fridge/fridge_latest.jpg
             media_content_type: image/jpeg
             metadata:
               title: Fridge Snapshot
-              thumbnail: "/local/fridge/{{ scan_photo_filename }}"
+              thumbnail: /local/fridge/fridge_latest.jpg
               media_class: image
         response_variable: sum_fridge
 
