@@ -133,16 +133,6 @@ actions:
 
   - if:
       - condition: template
-        value_template: '{{ scan_status_entity != "" }}'
-    then:
-      - action: input_text.set_value
-        target:
-          entity_id: "{{ scan_status_entity }}"
-        data:
-          value: "Scanning"
-
-  - if:
-      - condition: template
         value_template: '{{ last_scan_entity != "" }}'
     then:
       - action: input_datetime.set_datetime
@@ -152,17 +142,27 @@ actions:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
 
   - action: light.turn_on
+    continue_on_error: true
     target:
       entity_id: !input flashlight
 
   - delay: !input photo_delay
 
   - action: camera.snapshot
-    continue_on_error: true
     target:
       entity_id: !input camera_feed
     data:
       filename: /config/www/fridge/fridge_latest.jpg
+
+  - if:
+      - condition: template
+        value_template: '{{ scan_status_entity != "" }}'
+    then:
+      - action: input_text.set_value
+        target:
+          entity_id: "{{ scan_status_entity }}"
+        data:
+          value: "Scanning"
 
   - if:
       - condition: template
@@ -264,6 +264,7 @@ actions:
       milliseconds: 250
 
   - action: light.turn_off
+    continue_on_error: true
     target:
       entity_id: !input flashlight
 
