@@ -423,11 +423,11 @@ actions:
               {{ ('[[conf:' ~ repeat.item.confidence ~ ']]') if repeat.item.confidence else '' }}
             ai_box: '{{ ("[[box:" ~ repeat.item.box ~ "]]") if repeat.item.box else "" }}'
             final_description: >-
-              {{ [qty_marker, cond_marker, note_marker, conf_marker]
-                 + preserved_boxes
-                 + ([ai_box] if ai_box and not preserved_boxes and not preserved_flags else [])
-                 + preserved_flags
-                 + [preserved_brand] | select | join(' ') | trim }}
+              {{ ([qty_marker, cond_marker, note_marker, conf_marker]
+                  + preserved_boxes
+                  + ([ai_box] if ai_box and not preserved_boxes and not preserved_flags else [])
+                  + preserved_flags
+                  + [preserved_brand]) | select | join(' ') | trim }}
         - choose:
             - conditions:
                 - condition: template
