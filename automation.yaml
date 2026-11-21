@@ -202,7 +202,7 @@ actions:
           existing_hints: >-
             {% set ns3 = namespace(parts=[]) %}
             {% for it in existing_items_list %}
-              {% set b = it.description | regex_findall('\[\[box:([\d.,]+?)(?:,m)?\]\]') %}
+              {% set b = it.description | regex_findall('\[\[box:([\d.,]+?)(?:,m(?:,\d{4}-\d{2}-\d{2})?)?\]\]') %}
               {% set hint = it.summary ~ (' (previously around box ' ~ b[0] ~ ')' if b else '') %}
               {% set ns3.parts = ns3.parts + [hint] %}
             {% endfor %}
@@ -392,12 +392,11 @@ actions:
                  | list | first | default(none) }}
             consumed_uids: '{{ (consumed_uids + [match.uid]) if match is not none else consumed_uids }}'
             existing_desc: '{{ match.description if match else "" }}'
-            # A box is only preserved if it carries fridge-card's ",m" flag
-            # (drawn by hand there) - an AI-set box without that flag is
-            # left to refresh normally below.
-            preserved_box_raw: >-
-              {{ existing_desc | regex_replace('.*(\[\[box:[0-9.]+,[0-9.]+,[0-9.]+,[0-9.]+,m\]\]).*', '\\1') }}
-            preserved_box: '{{ preserved_box_raw if preserved_box_raw != existing_desc else "" }}'
+            # Preserve every hand-drawn box, including its optional due date.
+            preserved_boxes: >-
+              {{ existing_desc | regex_findall('\[\[box:[0-9.]+,[0-9.]+,[0-9.]+,[0-9.]+,m(?:,\d{4}-\d{2}-\d{2})?\]\]') }}
+            preserved_flags: >-
+              {{ existing_desc | regex_findall('\[\[(?:sidedoor|freezer):1\]\]') }}
             preserved_brand_raw: >-
               {{ existing_desc | regex_replace('.*(\[\[brand:[^\]]*\]\]).*', '\\1') }}
             preserved_brand: '{{ preserved_brand_raw if preserved_brand_raw != existing_desc else "" }}'
@@ -424,7 +423,11 @@ actions:
               {{ ('[[conf:' ~ repeat.item.confidence ~ ']]') if repeat.item.confidence else '' }}
             ai_box: '{{ ("[[box:" ~ repeat.item.box ~ "]]") if repeat.item.box else "" }}'
             final_description: >-
-              {{ [qty_marker, cond_marker, note_marker, conf_marker, (preserved_box if preserved_box else ai_box), preserved_brand] | select | join(' ') | trim }}
+              {{ ([qty_marker, cond_marker, note_marker, conf_marker]
+                  + preserved_boxes
+                  + ([ai_box] if ai_box and not preserved_boxes and not preserved_flags else [])
+                  + preserved_flags
+                  + [preserved_brand]) | select | join(' ') | trim }}
         - choose:
             - conditions:
                 - condition: template
